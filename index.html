@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="FilaManager: gerenciador de estoque de filamentos para impressão 3D.">
+<title>FilaManager</title>
+<style>
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: cabeçalho fixo com ação principal, barra de filtros e grade de cartões de carretel */
+  :root {
+    --bg: #f3f5f5;
+    --surface: #ffffff;
+    --surface-2: #eaeeee;
+    --fg: #17201f;
+    --muted: #5d6b6a;
+    --line: #d5dddc;
+    --accent: #1f5f6b;
+    --accent-fg: #ffffff;
+    --accent-soft: #dfecee;
+    --warn: #a4570b;
+    --warn-soft: #fbeedd;
+    --danger: #b3261e;
+    --danger-soft: #f9e3e1;
+    --shadow: 0 1px 2px rgba(20, 35, 35, .06), 0 4px 14px rgba(20, 35, 35, .05);
+    --font-ui: "Instrument Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-data: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111717; --surface: #192221; --surface-2: #222d2c; --fg: #e6eeed; --muted: #95a6a4;
+      --line: #2e3b3a; --accent: #6fb3bf; --accent-fg: #0d1a1c; --accent-soft: #1d3438;
+      --warn: #f0a85a; --warn-soft: #3a2a17; --danger: #f08a82; --danger-soft: #3d1f1d;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111717; --surface: #192221; --surface-2: #222d2c; --fg: #e6eeed; --muted: #95a6a4;
+    --line: #2e3b3a; --accent: #6fb3bf; --accent-fg: #0d1a1c; --accent-soft: #1d3438;
+    --warn: #f0a85a; --warn-soft: #3a2a17; --danger: #f08a82; --danger-soft: #3d1f1d;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: var(--font-ui); font-size: 15px; line-height: 1.45;
+  }
+  .wrap {
+    max-width: 1180px; margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Cabeçalho */
+  header { padding-block: 28px 18px; }
+  .head { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; }
+  .brand { display: flex; gap: 12px; align-items: center; }
+  .brand h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line);
+    background: var(--surface); padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    font-weight: 500; font-size: 14px; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.danger { background: var(--danger); color: var(--surface); border-color: var(--danger); }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn.ghost:hover { color: var(--fg); background: var(--surface-2); }
+
+  /* Filtros */
+  .filters {
+    display: grid; gap: 10px;
+    grid-template-columns: minmax(180px, 2fr) repeat(2, minmax(130px, 1fr)) minmax(190px, 1.3fr) minmax(130px, 1fr);
+    align-items: end;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field > span, .label {
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+  }
+  .input, select.input {
+    width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--bg);
+    border-radius: 8px; padding: 8px 10px; font-size: 14px;
+  }
+  .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .range { display: flex; gap: 6px; align-items: center; }
+  .range .input { font-family: var(--font-data); font-size: 13px; }
+  .range em { color: var(--muted); font-style: normal; font-size: 13px; }
+
+  .subbar {
+    display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between;
+    padding-block: 14px;
+  }
+  .count { color: var(--muted); font-size: 14px; }
+  .count b { color: var(--fg); font-weight: 600; }
+  .count .warn { color: var(--warn); }
+  .subbar-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; user-select: none; }
+  .toggle input { accent-color: var(--warn); width: 16px; height: 16px; }
+
+  .notice {
+    display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between;
+    background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; font-size: 14px; margin-bottom: 14px;
+  }
+
+  /* Grade de cartões */
+  .grid {
+    display: grid; gap: 14px; padding-bottom: 48px;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0;
+  }
+  .card.out { border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset, var(--shadow); }
+  .card-top { display: flex; gap: 12px; align-items: flex-start; }
+  .spool { flex: none; width: 54px; height: 54px; }
+  .ident { min-width: 0; flex: 1; }
+  .ident h3 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  .ident .brand-name { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+  .badge {
+    flex: none; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn);
+  }
+  .badge.example { background: var(--surface-2); color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 9px;
+    border-radius: 999px; background: var(--surface-2); max-width: 100%; overflow-wrap: anywhere;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset; }
+
+  .stock { display: flex; flex-direction: column; gap: 6px; }
+  .stock-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .stock-main { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+  .stock-main strong { font-size: 24px; font-weight: 500; }
+  .stock-main span { color: var(--muted); font-size: 13px; }
+  .grams { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 15px; }
+  .bar { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+  .bar-note { font-size: 12px; color: var(--muted); }
+
+  .card-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+    border-top: 1px solid var(--line); padding-top: 12px; margin-top: auto;
+  }
+  .price { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 15px; }
+  .price span { color: var(--muted); font-size: 12px; font-family: var(--font-ui); }
+  .actions { display: flex; gap: 2px; }
+  .icon-btn {
+    width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; border: 0;
+    background: transparent; color: var(--muted); cursor: pointer;
+  }
+  .icon-btn:hover { background: var(--surface-2); color: var(--fg); }
+  .icon-btn.on { color: var(--warn); background: var(--warn-soft); }
+  .icon-btn.del:hover { color: var(--danger); background: var(--danger-soft); }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .confirm {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;
+    background: var(--danger-soft); border-radius: 8px; padding: 8px 10px; font-size: 14px;
+  }
+  .confirm div { display: flex; gap: 6px; }
+
+  .empty {
+    grid-column: 1 / -1; text-align: center; padding: 48px 16px; border: 1px dashed var(--line);
+    border-radius: var(--radius); color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .empty h2 { margin: 0; color: var(--fg); font-size: 18px; }
+  .empty p { margin: 0; max-width: 42ch; }
+
+  /* Modal */
+  dialog {
+    border: 1px solid var(--line); border-radius: 16px; padding: 0; background: var(--surface); color: var(--fg);
+    width: min(620px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  }
+  dialog::backdrop { background: rgba(10, 20, 20, .45); }
+  .modal { display: flex; flex-direction: column; max-height: calc(100dvh - 26px); }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px 6px; }
+  .modal-head h2 { margin: 0; font-size: 19px; }
+  .modal-body { padding: 10px 20px 4px; overflow-y: auto; display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+  .modal-body .full { grid-column: 1 / -1; }
+  .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px 18px; border-top: 1px solid var(--line); margin-top: 10px; }
+  .err { color: var(--danger); font-size: 12px; min-height: 0; }
+  .input.invalid { border-color: var(--danger); }
+
+  .color-pick { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .preview {
+    width: 72px; height: 72px; flex: none; border-radius: 50%; display: grid; place-items: center;
+    background: var(--surface-2);
+  }
+  .preview svg { width: 72px; height: 72px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; min-width: 200px; }
+  .sw {
+    width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--surface); cursor: pointer;
+    box-shadow: 0 0 0 1px var(--line); padding: 0;
+  }
+  .sw[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--accent); }
+  .custom-color {
+    position: relative; width: 30px; height: 30px; border-radius: 50%; overflow: hidden; cursor: pointer;
+    box-shadow: 0 0 0 1px var(--line);
+    background: conic-gradient(#e53935, #fdd835, #43a047, #1e88e5, #8e24aa, #e53935);
+  }
+  .custom-color input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; border: 0; }
+  .custom-color[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--accent); }
+  .check { display: flex; gap: 10px; align-items: center; cursor: pointer; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+  .check input { accent-color: var(--warn); width: 18px; height: 18px; }
+  .check small { display: block; color: var(--muted); }
+  .hint { font-size: 12px; color: var(--muted); }
+
+  @media (max-width: 900px) {
+    .filters { grid-template-columns: 1fr 1fr; }
+    .filters .search { grid-column: 1 / -1; }
+  }
+  @media (max-width: 520px) {
+    .filters { grid-template-columns: 1fr; }
+    .modal-body { grid-template-columns: 1fr; }
+    .brand h1 { font-size: 22px; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .card { transition: border-color .15s, box-shadow .15s; }
+  }
+
+  /* Backup */
+  .head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .notice.backup { background: var(--warn-soft); }
+  .notice.backup div { display: flex; flex-wrap: wrap; gap: 6px; }
+  .modal-text { padding: 6px 20px 4px; display: grid; gap: 10px; font-size: 15px; }
+  .modal-text p { margin: 0; }
+  .modal-text .hint { font-size: 13px; }
+  #dlg-import { width: min(520px, calc(100vw - 24px)); }
+  #dlg-import .modal-foot { flex-wrap: wrap; }
+  .toast {
+    position: fixed; left: 50%; transform: translateX(-50%); z-index: 20;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100vw - 32px); background: var(--fg); color: var(--bg);
+    padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: var(--shadow);
+  }
+  @media (max-width: 520px) {
+    .head-actions { width: 100%; }
+    .head-actions .btn { flex: 1 1 auto; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <div class="head">
+    <div class="brand">
+      <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true">
+        <circle cx="24" cy="24" r="22" fill="var(--accent)"/>
+        <circle cx="24" cy="24" r="16" fill="none" stroke="var(--accent-fg)" stroke-opacity=".35" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="12" fill="none" stroke="var(--accent-fg)" stroke-opacity=".35" stroke-width="1.5"/>
+        <circle cx="24" cy="24" r="7" fill="var(--bg)"/>
+      </svg>
+      <div>
+        <h1>FilaManager</h1>
+        <p>Estoque de filamentos para impressão 3D</p>
+      </div>
+    </div>
+    <div class="head-actions">
+      <button class="btn" id="btn-export" type="button" title="Baixar um arquivo com todo o estoque">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+        Exportar backup
+      </button>
+      <button class="btn" id="btn-import" type="button" title="Restaurar o estoque a partir de um arquivo de backup">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>
+        Importar backup
+      </button>
+      <input type="file" id="file-import" accept=".json,application/json" hidden>
+      <button class="btn primary" id="btn-add" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Adicionar filamento
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="filters" aria-label="Filtros">
+    <label class="field search">
+      <span>Buscar</span>
+      <input class="input" id="f-search" type="search" placeholder="Tipo, marca, cor ou variação">
+    </label>
+    <label class="field">
+      <span>Tipo</span>
+      <select class="input" id="f-tipo"><option value="">Todos</option></select>
+    </label>
+    <label class="field">
+      <span>Marca</span>
+      <select class="input" id="f-marca"><option value="">Todas</option></select>
+    </label>
+    <div class="field">
+      <span id="lbl-valor">Valor por carretel (R$)</span>
+      <div class="range" role="group" aria-labelledby="lbl-valor">
+        <input class="input" id="f-min" type="number" min="0" step="1" placeholder="mín" aria-label="Valor mínimo">
+        <em>até</em>
+        <input class="input" id="f-max" type="number" min="0" step="1" placeholder="máx" aria-label="Valor máximo">
+      </div>
+    </div>
+    <label class="field">
+      <span>Ordenar por</span>
+      <select class="input" id="f-sort">
+        <option value="recent">Mais recentes</option>
+        <option value="price-asc">Menor valor</option>
+        <option value="price-desc">Maior valor</option>
+        <option value="qty-asc">Menor estoque</option>
+        <option value="qty-desc">Maior estoque</option>
+      </select>
+    </label>
+  </section>
+
+  <div class="subbar">
+    <div class="count" id="count" aria-live="polite"></div>
+    <div class="subbar-actions">
+      <label class="toggle"><input type="checkbox" id="f-out"> Só em falta</label>
+      <button class="btn ghost" id="btn-clear" type="button">Limpar filtros</button>
+    </div>
+  </div>
+
+  <div class="notice" id="notice" hidden></div>
+  <div class="notice backup" id="backup-notice" hidden></div>
+
+  <section class="grid" id="grid" aria-label="Filamentos"></section>
+</main>
+
+<dialog id="dlg" aria-labelledby="dlg-title">
+  <form class="modal" id="form" novalidate>
+    <div class="modal-head">
+      <h2 id="dlg-title">Adicionar filamento</h2>
+      <button class="icon-btn" type="button" id="btn-x" aria-label="Fechar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label class="label" for="i-tipo">Tipo de filamento</label>
+        <select class="input" id="i-tipo"></select>
+        <input class="input" id="i-tipo-outro" type="text" placeholder="Qual tipo? Ex: PLA-CF" hidden>
+        <span class="err" id="e-tipo"></span>
+      </div>
+      <div class="field">
+        <label class="label" for="i-marca">Marca</label>
+        <select class="input" id="i-marca"></select>
+        <input class="input" id="i-marca-outro" type="text" placeholder="Qual marca?" hidden>
+        <span class="err" id="e-marca"></span>
+      </div>
+
+      <div class="field full">
+        <span class="label" id="lbl-cor">Cor</span>
+        <div class="color-pick" role="group" aria-labelledby="lbl-cor">
+          <div class="preview" id="cor-preview" aria-hidden="true"></div>
+          <div class="swatches" id="swatches">
+            <label class="custom-color" id="custom-wrap" title="Cor personalizada">
+              <input type="color" id="i-cor-custom" aria-label="Escolher cor personalizada" value="#1f5f6b">
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="label" for="i-cor-nome">Nome da cor</label>
+        <input class="input" id="i-cor-nome" type="text" placeholder="Ex: Azul petróleo">
+      </div>
+      <div class="field">
+        <label class="label" for="i-variacao">Variações</label>
+        <input class="input" id="i-variacao" type="text" placeholder="Ex: granito, seda, marmorizado">
+      </div>
+
+      <div class="field">
+        <label class="label" for="i-valor">Valor por carretel (R$)</label>
+        <input class="input" id="i-valor" type="number" min="0" step="0.01" placeholder="0,00">
+        <span class="err" id="e-valor"></span>
+      </div>
+      <div class="field">
+        <label class="label" for="i-carreteis">Carretéis em estoque</label>
+        <input class="input" id="i-carreteis" type="number" min="0" step="1" placeholder="0">
+        <span class="err" id="e-carreteis"></span>
+      </div>
+      <div class="field">
+        <label class="label" for="i-gramas">Peso restante total (g)</label>
+        <input class="input" id="i-gramas" type="number" min="0" step="1" placeholder="Ex: 1650">
+        <span class="hint">Soma do filamento em todos os carretéis.</span>
+        <span class="err" id="e-gramas"></span>
+      </div>
+      <div class="field">
+        <label class="label" for="i-nominal">Peso por carretel novo (g)</label>
+        <input class="input" id="i-nominal" type="number" min="1" step="1" value="1000">
+        <span class="hint">Usado na barra de nível. Padrão: 1 kg.</span>
+      </div>
+
+      <label class="check full">
+        <input type="checkbox" id="i-falta">
+        <span>Em falta<small>Lembrete de que este filamento precisa ser reposto.</small></span>
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" type="button" id="btn-cancel">Cancelar</button>
+      <button class="btn primary" type="submit" id="btn-save">Salvar filamento</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-import" aria-labelledby="imp-title">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="imp-title">Importar backup</h2>
+    </div>
+    <div class="modal-text" id="imp-text"></div>
+    <div class="modal-foot">
+      <button class="btn" type="button" id="imp-cancel">Cancelar</button>
+      <button class="btn" type="button" id="imp-merge">Juntar ao estoque atual</button>
+      <button class="btn primary" type="button" id="imp-replace">Substituir estoque</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(() => {
+  const TIPOS = ["PLA","PETG","ABS","ASA","TPU","TPE","PA (Nylon)","PC (Policarbonato)","PP (Polipropileno)","PVA","BVOH","HIPS","POM (Acetal)","PEEK","PEKK","PEI (ULTEM)","PPS","PPSU"];
+  const MARCAS = ["Voolt3D","3D Fila","3D Lab","eSUN","SUNLU","Creality","Bambu Lab","Polymaker","Prusament","Hatchbox","Flashforge","Elegoo","Anycubic","VZBot","Printalot","GTMax3D","3D Prime","FilaBot"];
+  const CORES = [
+    ["#1b1b1b","Preto"],["#f7f7f5","Branco"],["#8a8f94","Cinza"],["#b8bec4","Prata"],
+    ["#d32f2f","Vermelho"],["#f57c00","Laranja"],["#fbc02d","Amarelo"],["#2e7d32","Verde"],
+    ["#1565c0","Azul"],["#6a1b9a","Roxo"],["#ec6fa4","Rosa"],["#6d4c41","Marrom"],
+    ["#c9a227","Dourado"],["#ede6d6","Natural"]
+  ];
+  const OUTRO = "__outro";
+  const KEY = "filamanager.v1";
+
+  const $ = (id) => document.getElementById(id);
+  const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+  const num = new Intl.NumberFormat("pt-BR");
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  /* ---------- Armazenamento ---------- */
+  let storageOk = true;
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw === null) return null;
+      const data = JSON.parse(raw);
+      return Array.isArray(data) ? data : null;
+    } catch { storageOk = false; return null; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(items)); storageOk = true; }
+    catch { storageOk = false; }
+    setMeta({ lastChange: Date.now() });
+  }
+
+  /* Metadados do backup: última alteração, último backup e adiamento do lembrete */
+  const META_KEY = "filamanager.meta";
+  function getMeta() {
+    try { return JSON.parse(localStorage.getItem(META_KEY)) || {}; }
+    catch { return {}; }
+  }
+  function setMeta(patch) {
+    try { localStorage.setItem(META_KEY, JSON.stringify({ ...getMeta(), ...patch })); }
+    catch { /* sem armazenamento: o lembrete apenas não persiste */ }
+  }
+
+  const now = Date.now();
+  const EXEMPLOS = [
+    { tipo:"PLA", marca:"Voolt3D", variacao:"", cor:"#1b1b1b", corNome:"Preto", valor:89.9, carreteis:3, gramas:2400, nominal:1000, emFalta:false },
+    { tipo:"PETG", marca:"3D Lab", variacao:"", cor:"#1565c0", corNome:"Azul", valor:119.9, carreteis:1, gramas:320, nominal:1000, emFalta:true },
+    { tipo:"PLA", marca:"3D Fila", variacao:"Granito", cor:"#8a8f94", corNome:"Cinza granito", valor:109.9, carreteis:2, gramas:1650, nominal:1000, emFalta:false },
+    { tipo:"TPU", marca:"SUNLU", variacao:"Flexível 95A", cor:"#d32f2f", corNome:"Vermelho", valor:149.0, carreteis:1, gramas:780, nominal:1000, emFalta:false },
+    { tipo:"PLA", marca:"Bambu Lab", variacao:"Seda", cor:"#c9a227", corNome:"Dourado", valor:139.9, carreteis:1, gramas:950, nominal:1000, emFalta:false },
+    { tipo:"ABS", marca:"eSUN", variacao:"", cor:"#f7f7f5", corNome:"Branco", valor:99.9, carreteis:0, gramas:0, nominal:1000, emFalta:true }
+  ].map((x, i) => ({ ...x, id: uid() + i, exemplo: true, criadoEm: now - i * 3600e3 }));
+
+  let items = load();
+  if (items === null) { items = EXEMPLOS; save(); }
+
+  /* ---------- Utilidades de exibição ---------- */
+  const tipoDe = (it) => it.tipo || "—";
+  const marcaDe = (it) => it.marca || "—";
+
+  function luminance(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return 0.5;
+    const n = parseInt(m[1], 16);
+    const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+      v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+
+  function spoolSvg(color, size = 54) {
+    const light = luminance(color) > 0.7;
+    const wind = light ? "rgba(0,0,0,.14)" : "rgba(255,255,255,.22)";
+    return `<svg class="spool" width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true">
+      <circle cx="24" cy="24" r="22.5" fill="${esc(color)}" stroke="${light ? "rgba(0,0,0,.18)" : "rgba(0,0,0,.25)"}" stroke-width="1"/>
+      <circle cx="24" cy="24" r="18.5" fill="none" stroke="${wind}" stroke-width="1"/>
+      <circle cx="24" cy="24" r="15" fill="none" stroke="${wind}" stroke-width="1"/>
+      <circle cx="24" cy="24" r="11.5" fill="none" stroke="${wind}" stroke-width="1"/>
+      <circle cx="24" cy="24" r="7.5" fill="var(--surface)" stroke="rgba(0,0,0,.18)" stroke-width="1"/>
+      <circle cx="24" cy="24" r="2.5" fill="var(--line)"/>
+    </svg>`;
+  }
+
+  const ICON = {
+    flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>',
+    del: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>'
+  };
+
+  /* ---------- Filtros ---------- */
+  const F = { search: $("f-search"), tipo: $("f-tipo"), marca: $("f-marca"), min: $("f-min"), max: $("f-max"), sort: $("f-sort"), out: $("f-out") };
+
+  function fillFilterOptions() {
+    const fill = (sel, values, allLabel) => {
+      const cur = sel.value;
+      const opts = [...new Set(values)].sort((a, b) => a.localeCompare(b, "pt-BR"));
+      sel.innerHTML = `<option value="">${allLabel}</option>` + opts.map((v) => `<option>${esc(v)}</option>`).join("");
+      sel.value = opts.includes(cur) ? cur : "";
+    };
+    fill(F.tipo, items.map(tipoDe), "Todos");
+    fill(F.marca, items.map(marcaDe), "Todas");
+  }
+
+  function filtered() {
+    const q = F.search.value.trim().toLowerCase();
+    const min = F.min.value === "" ? null : Number(F.min.value);
+    const max = F.max.value === "" ? null : Number(F.max.value);
+    const list = items.filter((it) => {
+      if (F.tipo.value && tipoDe(it) !== F.tipo.value) return false;
+      if (F.marca.value && marcaDe(it) !== F.marca.value) return false;
+      if (min !== null && it.valor < min) return false;
+      if (max !== null && it.valor > max) return false;
+      if (F.out.checked && !it.emFalta) return false;
+      if (q) {
+        const hay = [it.tipo, it.marca, it.variacao, it.corNome].join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    const s = F.sort.value;
+    const cmp = {
+      "recent": (a, b) => b.criadoEm - a.criadoEm,
+      "price-asc": (a, b) => a.valor - b.valor,
+      "price-desc": (a, b) => b.valor - a.valor,
+      "qty-asc": (a, b) => a.gramas - b.gramas,
+      "qty-desc": (a, b) => b.gramas - a.gramas
+    }[s];
+    return list.sort(cmp);
+  }
+
+  /* ---------- Renderização ---------- */
+  let confirmId = null;
+
+  function card(it) {
+    const cap = Math.max(1, it.carreteis) * (it.nominal || 1000);
+    const pct = it.carreteis > 0 || it.gramas > 0 ? Math.min(100, Math.round((it.gramas / cap) * 100)) : 0;
+    const chips = [];
+    chips.push(`<span class="chip"><i class="dot" style="background:${esc(it.cor)}"></i>${esc(it.corNome || it.cor.toUpperCase())}</span>`);
+    if (it.variacao) chips.push(`<span class="chip">${esc(it.variacao)}</span>`);
+    const badge = it.emFalta ? `<span class="badge">Em falta</span>` : (it.exemplo ? `<span class="badge example">Exemplo</span>` : "");
+    const foot = confirmId === it.id
+      ? `<div class="confirm" style="width:100%"><span>Excluir este filamento?</span><div>
+           <button class="btn" type="button" data-act="cancel-del">Cancelar</button>
+           <button class="btn danger" type="button" data-act="confirm-del">Excluir</button></div></div>`
+      : `<div class="price">${brl.format(it.valor || 0)} <span>/ carretel</span></div>
+         <div class="actions">
+           <button class="icon-btn ${it.emFalta ? "on" : ""}" type="button" data-act="toggle" aria-pressed="${it.emFalta}" title="${it.emFalta ? "Desmarcar em falta" : "Marcar como em falta"}" aria-label="${it.emFalta ? "Desmarcar em falta" : "Marcar como em falta"}">${ICON.flag}</button>
+           <button class="icon-btn" type="button" data-act="edit" title="Editar" aria-label="Editar">${ICON.edit}</button>
+           <button class="icon-btn del" type="button" data-act="del" title="Excluir" aria-label="Excluir">${ICON.del}</button>
+         </div>`;
+    return `<article class="card ${it.emFalta ? "out" : ""}" data-id="${esc(it.id)}">
+      <div class="card-top">
+        ${spoolSvg(it.cor)}
+        <div class="ident">
+          <h3>${esc(tipoDe(it))}</h3>
+          <div class="brand-name">${esc(marcaDe(it))}</div>
+        </div>
+        ${badge}
+      </div>
+      <div class="chips">${chips.join("")}</div>
+      <div class="stock">
+        <span class="label">Quantidade em estoque</span>
+        <div class="stock-row">
+          <div class="stock-main"><strong>${num.format(it.carreteis)}</strong> <span>${it.carreteis === 1 ? "carretel" : "carretéis"}</span></div>
+          <div class="grams">${num.format(it.gramas)} g</div>
+        </div>
+        <div class="bar" role="img" aria-label="${pct}% da capacidade"><i style="width:${pct}%; ${it.emFalta ? "background:var(--warn)" : ""}"></i></div>
+        <div class="bar-note">${pct}% de ${num.format(cap / 1000)} kg</div>
+      </div>
+      <div class="card-foot">${foot}</div>
+    </article>`;
+  }
+
+  function render() {
+    fillFilterOptions();
+    const list = filtered();
+    const grid = $("grid");
+    const outCount = items.filter((i) => i.emFalta).length;
+
+    $("count").innerHTML = items.length === 0 ? "" :
+      `Mostrando <b>${list.length}</b> de ${items.length} filamentos` +
+      (outCount ? ` · <b class="warn">${outCount} em falta</b>` : "");
+
+    if (items.length === 0) {
+      grid.innerHTML = `<div class="empty"><h2>Nenhum filamento cadastrado</h2>
+        <p>Adicione os carretéis que você tem para acompanhar o estoque e saber o que precisa repor.</p>
+        <button class="btn primary" type="button" data-act="add">Adicionar filamento</button></div>`;
+    } else if (list.length === 0) {
+      grid.innerHTML = `<div class="empty"><h2>Nenhum filamento encontrado</h2>
+        <p>Nenhum item corresponde aos filtros atuais.</p>
+        <button class="btn" type="button" data-act="clear">Limpar filtros</button></div>`;
+    } else {
+      grid.innerHTML = list.map(card).join("");
+    }
+
+    const notice = $("notice");
+    const hasExamples = items.some((i) => i.exemplo);
+    if (!storageOk) {
+      notice.hidden = false;
+      notice.innerHTML = `<span>Este navegador não permitiu salvar os dados. As alterações ficam só nesta aba até ela ser fechada.</span>`;
+    } else if (hasExamples) {
+      notice.hidden = false;
+      notice.innerHTML = `<span>Os itens marcados como <b>Exemplo</b> mostram como a ferramenta funciona. Edite-os ou remova-os quando cadastrar os seus.</span>
+        <button class="btn" type="button" data-act="drop-examples">Remover exemplos</button>`;
+    } else {
+      notice.hidden = true;
+    }
+    renderBackupNotice();
+  }
+
+  /* ---------- Backup ---------- */
+  const DAY = 86400e3;
+  const REMIND_AFTER = 7 * DAY;
+  const dataBR = (t) => new Date(t).toLocaleDateString("pt-BR");
+
+  function renderBackupNotice() {
+    const el = $("backup-notice");
+    const meta = getMeta();
+    const real = items.filter((i) => !i.exemplo).length;
+    const t = Date.now();
+    let msg = "";
+    if (real > 0 && !(meta.snoozeUntil > t)) {
+      if (!meta.lastBackup) {
+        msg = "Você ainda não fez backup do seu estoque. Se os dados do navegador forem apagados, os cadastros se perdem.";
+      } else if (meta.lastChange > meta.lastBackup && t - meta.lastBackup > REMIND_AFTER) {
+        const dias = Math.floor((t - meta.lastBackup) / DAY);
+        msg = `Seu último backup foi há ${dias} dias (${dataBR(meta.lastBackup)}) e o estoque mudou desde então.`;
+      }
+    }
+    el.hidden = !msg;
+    if (msg) {
+      el.innerHTML = `<span>${esc(msg)}</span><div>
+        <button class="btn ghost" type="button" data-act="snooze">Lembrar amanhã</button>
+        <button class="btn primary" type="button" data-act="export">Exportar agora</button></div>`;
+    }
+  }
+
+  let toastTimer;
+  function toast(text) {
+    const el = $("toast");
+    el.textContent = text;
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (el.hidden = true), 3500);
+  }
+
+  function exportBackup() {
+    const real = items.filter((i) => !i.exemplo);
+    const data = { app: "FilaManager", versao: 1, exportadoEm: new Date().toISOString(), itens: real };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `filamanager-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setMeta({ lastBackup: Date.now(), snoozeUntil: 0 });
+    renderBackupNotice();
+    toast(real.length ? `Backup exportado com ${real.length} ${real.length === 1 ? "filamento" : "filamentos"}.` : "Backup exportado (estoque vazio).");
+  }
+
+  /* Converte um item do arquivo em um registro válido, ou null se faltar o essencial */
+  function sanitize(x) {
+    if (!x || typeof x !== "object") return null;
+    const str = (v) => (typeof v === "string" ? v.trim() : "");
+    const n = (v, d = 0) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : d);
+    const tipo = str(x.tipo), marca = str(x.marca);
+    if (!tipo || !marca) return null;
+    return {
+      id: str(x.id) || uid(),
+      tipo, marca,
+      variacao: str(x.variacao),
+      cor: /^#[0-9a-f]{6}$/i.test(x.cor) ? x.cor.toLowerCase() : "#8a8f94",
+      corNome: str(x.corNome),
+      valor: n(x.valor),
+      carreteis: Math.round(n(x.carreteis)),
+      gramas: Math.round(n(x.gramas)),
+      nominal: n(x.nominal, 1000) || 1000,
+      emFalta: !!x.emFalta,
+      exemplo: false,
+      criadoEm: Number.isFinite(Number(x.criadoEm)) ? Number(x.criadoEm) : Date.now()
+    };
+  }
+
+  let pendingImport = null;
+  const dlgImp = $("dlg-import");
+
+  async function readImport(file) {
+    let parsed;
+    try { parsed = JSON.parse(await file.text()); }
+    catch { toast("Não foi possível ler o arquivo. Escolha um backup .json exportado pelo FilaManager."); return; }
+    const raw = Array.isArray(parsed) ? parsed : parsed?.itens;
+    if (!Array.isArray(raw)) { toast("Este arquivo não é um backup do FilaManager."); return; }
+    const valid = raw.map(sanitize).filter(Boolean);
+    const skipped = raw.length - valid.length;
+    if (valid.length === 0) { toast("O backup não tem nenhum filamento válido para importar."); return; }
+
+    pendingImport = valid;
+    const real = items.filter((i) => !i.exemplo).length;
+    const quando = parsed?.exportadoEm ? ` de ${dataBR(parsed.exportadoEm)}` : "";
+    $("imp-text").innerHTML =
+      `<p>O backup${esc(quando)} tem <b>${valid.length}</b> ${valid.length === 1 ? "filamento" : "filamentos"}.` +
+      (skipped ? ` ${skipped} ${skipped === 1 ? "item incompleto será ignorado" : "itens incompletos serão ignorados"}.` : "") + `</p>` +
+      (real
+        ? `<p>Seu estoque atual tem <b>${real}</b> ${real === 1 ? "filamento" : "filamentos"}.</p>
+           <p class="hint"><b>Substituir</b> apaga o estoque atual e usa só o backup. <b>Juntar</b> mantém o atual e adiciona o que ainda não existe.</p>`
+        : `<p class="hint">Seu estoque atual está vazio, então os filamentos do backup serão adicionados.</p>`);
+    $("imp-merge").hidden = !real;
+    dlgImp.showModal();
+  }
+
+  function applyImport(mode) {
+    if (!pendingImport) return;
+    let added = pendingImport.length;
+    if (mode === "replace") {
+      items = pendingImport;
+    } else {
+      const ids = new Set(items.map((i) => i.id));
+      const novos = pendingImport.filter((i) => !ids.has(i.id));
+      added = novos.length;
+      items = items.filter((i) => !i.exemplo).concat(novos);
+    }
+    pendingImport = null;
+    confirmId = null;
+    save();
+    setMeta({ lastBackup: Date.now() });
+    dlgImp.close();
+    render();
+    toast(mode === "replace"
+      ? `Estoque restaurado com ${items.length} ${items.length === 1 ? "filamento" : "filamentos"}.`
+      : added
+        ? `${added} ${added === 1 ? "filamento adicionado" : "filamentos adicionados"} ao estoque.`
+        : "Todos os filamentos do backup já estavam no estoque.");
+  }
+
+  $("btn-export").addEventListener("click", exportBackup);
+  $("btn-import").addEventListener("click", () => $("file-import").click());
+  $("file-import").addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) readImport(file);
+  });
+  $("imp-replace").addEventListener("click", () => applyImport("replace"));
+  $("imp-merge").addEventListener("click", () => applyImport("merge"));
+  $("imp-cancel").addEventListener("click", () => dlgImp.close());
+  dlgImp.addEventListener("close", () => { pendingImport = null; });
+
+  /* ---------- Modal de cadastro ---------- */
+  const dlg = $("dlg");
+  const I = {
+    tipo: $("i-tipo"), tipoOutro: $("i-tipo-outro"), marca: $("i-marca"), marcaOutro: $("i-marca-outro"),
+    corNome: $("i-cor-nome"), corCustom: $("i-cor-custom"), variacao: $("i-variacao"),
+    valor: $("i-valor"), carreteis: $("i-carreteis"), gramas: $("i-gramas"), nominal: $("i-nominal"), falta: $("i-falta")
+  };
+  let editingId = null;
+  let corAtual = CORES[0][0];
+  let corNomeAuto = true;
+
+  I.tipo.innerHTML = `<option value="">Selecione…</option>` + TIPOS.map((t) => `<option>${esc(t)}</option>`).join("") + `<option value="${OUTRO}">Outro…</option>`;
+  I.marca.innerHTML = `<option value="">Selecione…</option>` + MARCAS.map((m) => `<option>${esc(m)}</option>`).join("") + `<option value="${OUTRO}">Outra…</option>`;
+
+  const swWrap = $("swatches");
+  const customWrap = $("custom-wrap");
+  CORES.forEach(([hex, nome]) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "sw"; b.style.background = hex;
+    b.title = nome; b.setAttribute("aria-label", nome); b.dataset.hex = hex; b.dataset.nome = nome;
+    swWrap.insertBefore(b, customWrap);
+  });
+
+  function setCor(hex, nome) {
+    corAtual = hex.toLowerCase();
+    $("cor-preview").innerHTML = spoolSvg(corAtual, 72);
+    let matched = false;
+    swWrap.querySelectorAll(".sw").forEach((b) => {
+      const on = b.dataset.hex.toLowerCase() === corAtual;
+      if (on) matched = true;
+      b.setAttribute("aria-pressed", String(on));
+    });
+    customWrap.setAttribute("aria-pressed", String(!matched));
+    if (!matched) I.corCustom.value = corAtual;
+    if (nome !== undefined && (corNomeAuto || !I.corNome.value.trim())) {
+      I.corNome.value = nome; corNomeAuto = true;
+    }
+  }
+
+  swWrap.addEventListener("click", (e) => {
+    const b = e.target.closest(".sw");
+    if (b) setCor(b.dataset.hex, b.dataset.nome);
+  });
+  I.corCustom.addEventListener("input", () => setCor(I.corCustom.value, corNomeAuto ? "" : undefined));
+  I.corNome.addEventListener("input", () => { corNomeAuto = false; });
+
+  function syncOutro() {
+    I.tipoOutro.hidden = I.tipo.value !== OUTRO;
+    I.marcaOutro.hidden = I.marca.value !== OUTRO;
+  }
+  I.tipo.addEventListener("change", () => { syncOutro(); if (!I.tipoOutro.hidden) I.tipoOutro.focus(); });
+  I.marca.addEventListener("change", () => { syncOutro(); if (!I.marcaOutro.hidden) I.marcaOutro.focus(); });
+
+  function setSelectWithOutro(sel, outroInput, list, value) {
+    if (!value) { sel.value = ""; outroInput.value = ""; }
+    else if (list.includes(value)) { sel.value = value; outroInput.value = ""; }
+    else { sel.value = OUTRO; outroInput.value = value; }
+  }
+
+  function clearErrors() {
+    document.querySelectorAll("#form .err").forEach((e) => (e.textContent = ""));
+    document.querySelectorAll("#form .invalid").forEach((e) => e.classList.remove("invalid"));
+  }
+
+  function openForm(it) {
+    editingId = it ? it.id : null;
+    clearErrors();
+    $("dlg-title").textContent = it ? "Editar filamento" : "Adicionar filamento";
+    $("btn-save").textContent = it ? "Salvar alterações" : "Salvar filamento";
+    setSelectWithOutro(I.tipo, I.tipoOutro, TIPOS, it?.tipo);
+    setSelectWithOutro(I.marca, I.marcaOutro, MARCAS, it?.marca);
+    I.variacao.value = it?.variacao || "";
+    I.valor.value = it ? it.valor : "";
+    I.carreteis.value = it ? it.carreteis : "1";
+    I.gramas.value = it ? it.gramas : "1000";
+    I.nominal.value = it?.nominal || 1000;
+    I.falta.checked = !!it?.emFalta;
+    I.corNome.value = it?.corNome || "";
+    corNomeAuto = !it;
+    setCor(it?.cor || CORES[0][0], it ? undefined : CORES[0][1]);
+    syncOutro();
+    dlg.showModal();
+    I.tipo.focus();
+  }
+
+  function fail(input, errId, msg) {
+    input.classList.add("invalid");
+    $(errId).textContent = msg;
+    return false;
+  }
+
+  $("form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    clearErrors();
+    let ok = true;
+    const tipo = I.tipo.value === OUTRO ? I.tipoOutro.value.trim() : I.tipo.value;
+    const marca = I.marca.value === OUTRO ? I.marcaOutro.value.trim() : I.marca.value;
+    if (!tipo) ok = fail(I.tipo.value === OUTRO ? I.tipoOutro : I.tipo, "e-tipo", I.tipo.value === OUTRO ? "Digite o tipo de filamento." : "Escolha o tipo de filamento.");
+    if (!marca) ok = fail(I.marca.value === OUTRO ? I.marcaOutro : I.marca, "e-marca", I.marca.value === OUTRO ? "Digite o nome da marca." : "Escolha a marca.");
+    const valor = I.valor.value === "" ? NaN : Number(I.valor.value);
+    if (!(valor >= 0)) ok = fail(I.valor, "e-valor", "Informe um valor igual ou maior que zero.");
+    const carreteis = I.carreteis.value === "" ? NaN : Number(I.carreteis.value);
+    if (!(carreteis >= 0) || !Number.isInteger(carreteis)) ok = fail(I.carreteis, "e-carreteis", "Use um número inteiro, 0 ou mais.");
+    const gramas = I.gramas.value === "" ? NaN : Number(I.gramas.value);
+    if (!(gramas >= 0)) ok = fail(I.gramas, "e-gramas", "Informe o peso em gramas, 0 ou mais.");
+    if (!ok) { document.querySelector("#form .invalid")?.focus(); return; }
+
+    const data = {
+      tipo, marca, variacao: I.variacao.value.trim(), cor: corAtual, corNome: I.corNome.value.trim(),
+      valor, carreteis, gramas: Math.round(gramas), nominal: Math.max(1, Number(I.nominal.value) || 1000),
+      emFalta: I.falta.checked
+    };
+    if (editingId) {
+      const it = items.find((x) => x.id === editingId);
+      if (it) Object.assign(it, data, { exemplo: false });
+    } else {
+      items.push({ id: uid(), criadoEm: Date.now(), exemplo: false, ...data });
+    }
+    save();
+    dlg.close();
+    render();
+  });
+
+  $("btn-cancel").addEventListener("click", () => dlg.close());
+  $("btn-x").addEventListener("click", () => dlg.close());
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+
+  /* ---------- Eventos ---------- */
+  function clearFilters() {
+    F.search.value = ""; F.tipo.value = ""; F.marca.value = ""; F.min.value = ""; F.max.value = "";
+    F.out.checked = false; F.sort.value = "recent";
+    render();
+  }
+
+  $("btn-add").addEventListener("click", () => openForm(null));
+  $("btn-clear").addEventListener("click", clearFilters);
+  [F.search, F.min, F.max].forEach((el) => el.addEventListener("input", render));
+  [F.tipo, F.marca, F.sort, F.out].forEach((el) => el.addEventListener("change", render));
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-act]");
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const id = btn.closest("[data-id]")?.dataset.id;
+    const it = id ? items.find((x) => x.id === id) : null;
+    switch (act) {
+      case "add": openForm(null); break;
+      case "clear": clearFilters(); break;
+      case "edit": if (it) openForm(it); break;
+      case "toggle": if (it) { it.emFalta = !it.emFalta; save(); render(); } break;
+      case "del": confirmId = id; render(); document.querySelector(`[data-id="${CSS.escape(id)}"] [data-act="cancel-del"]`)?.focus(); break;
+      case "cancel-del": confirmId = null; render(); break;
+      case "confirm-del": items = items.filter((x) => x.id !== id); confirmId = null; save(); render(); break;
+      case "drop-examples": items = items.filter((x) => !x.exemplo); save(); render(); break;
+      case "export": exportBackup(); break;
+      case "snooze": setMeta({ snoozeUntil: Date.now() + DAY }); renderBackupNotice(); break;
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
